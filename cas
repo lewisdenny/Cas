@@ -1,0 +1,174 @@
+#!/bin/bash
+
+function retrieveToken(){
+  token=`curl $curlOption -s -k -d "username=$accessUsername&password=$accessPassword&grant_type=password&client_id=hydra-client-cli" https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token | sed 's/.*access_token":"\([^"]*\).*/\1/'`
+  echo $token >~/.hydratoken
+}
+
+function retrieveCaseNumbers () {
+  token=`cat ~/.hydratoken`
+  query="SELECT CaseNumber FROM Case WHERE SBR_Group__c INCLUDES  ('$SBR') AND Account.AccountNumber = '$AccountNum' \",\"identifier\":\"NumberOfRecord"
+  casesForAccountNumber=`curl -s $curlOption 'https://access.redhat.com/hydra/rest/soql' \
+  -H 'Content-Type: application/json' \
+  -H "Authorization:Bearer $token" \
+  -H 'Origin: https://access.redhat.com' \
+  --data-raw $"[{\"query\":\"$query\"}]"`
+}
+
+function retrieveCaseAttachments () {
+  #######################################
+  # https://stackoverflow.com/a/3330834 #
+  #######################################
+  sp="/-\|"
+  sc=0
+  function spin() {
+     printf "\b${sp:sc++:1}"
+     ((sc==${#sp})) && sc=0
+  }
+  function endspin() {
+     printf "\r%s\n" "$@"
+  }
+  #######################################
+  
+  caseNumbers=`echo $casesForAccountNumber | jq -r .'[].records[].CaseNumber'`
+  quantityOfCaseNumbers=`echo $casesForAccountNumber | jq -r .'[].records[].CaseNumber'| wc -l`
+  for caseNumber in $caseNumbers
+  do
+    response=`curl -s $curlOption "https://access.redhat.com/hydra/rest/cases/$caseNumber/attachments/" \
+    -H 'Content-Type: application/json' \
+    -H "Authorization:Bearer $token"`
+    attachmentQuantity=`expr $(echo $response | jq -r '.[].fileName' | wc -l) - 1`
+    
+    #Loop through attachments on the case pulling out file name and URL
+    index="0"
+    while [ "$index" -le "$attachmentQuantity" ]
+    do
+      attachmentFileName=`echo $response | jq -r ".[$index].fileName"`
+      attachmentLink=`echo $response | jq -r ".[$index].link"`
+      attachmentCreatedDate=`echo $response | jq -r ".[$index].createdDate" | cut -f1 -dT`
+      #echo $attachmentCreatedDate
+      if [ "$enableLink" -eq "1" ]
+      then
+        lineToPrint="$caseNumber $attachmentCreatedDate $attachmentFileName $attachmentLink"
+      else
+        lineToPrint="$caseNumber $attachmentCreatedDate $attachmentFileName"
+      fi
+      
+      if [ -n "$filter" ]
+      then
+        printf "$lineToPrint\n" | grep --colour $grepOption "$filter"
+      else
+        printf "$lineToPrint\n"
+      fi
+    index=$[$index+1]
+    spin
+    echo -ne "  Searching attachment $index in case $caseCount/$quantityOfCaseNumbers \r"
+    done
+    caseCount=$[$caseCount+1]
+  done
+  endspin
+  exit 0
+}
+
+function help () {
+  printf "Usage:\n  cas [CREDENTIALS] [OPTIONS]\n"
+  printf "\n"
+  printf "Example:\n  cas -u rhn-support-username -p password -s Stack -id 1445807 -l -i -f Cwdlosp01\n"
+  printf "\n"
+  printf "[CREDENTIALS]\n"
+  printf "  -u,  --username               access.redhat.com username\n"
+  printf "  -p,  --password               access.redhat.com password\n"
+  printf "\n"
+  printf "[OPTIONS]\n"
+  printf "  -s,  --sbr                    SBR you would like to search in\n"
+  printf "  -id, --customer-account-id    Customers account ID\n"
+  printf "  -f,  --filter                 Filter on attachment details\n"
+  printf "  -h,  --help                   This help screen\n"
+  printf "  -l,  --link                   Enables links to the attachments\n"
+  printf "  -i,  --ignore-case            Ignore case distinctions\n"
+  printf "  -v,  --verbose                Enables verbose on all curl commands\n"
+  exit 0
+}
+
+#Defaults
+enableLink="0"
+curlOption=""
+filter=""
+
+#####
+#https://github.com/sormy/aws-curl/blob/7cd6a9ae53ac493a7cd5eba857e19d92be6c97d5/aws-curl#L333-L382
+#####
+quantityOfArgs="$#"
+while [ "$#" != 0 ]
+do
+  case $1 in
+    -l | --link )
+        enableLink="1"
+        shift
+        ;;
+    -u | --username )
+        shift
+        accessUsername="$1"
+        shift
+        ;;
+    -p | --password )
+        shift
+        accessPassword="$1"
+        shift
+        ;;
+    -s | --sbr )
+        shift
+        SBR="$1"
+        shift
+        ;;
+    -id | --customer-account-id )
+        shift
+        AccountNum="$1"
+        shift
+        ;;
+    -i | --ignore-case )
+        grepOption="-i"
+        shift
+        ;;
+    -f | --filter )
+        shift
+        filter="$1"
+        shift
+        ;;
+    -h | --help )
+        help
+        exit
+        ;;
+    -v | --verbose )
+        curlOption="-v"
+        shift
+        ;;
+    * )
+        shift
+  esac
+done
+
+if [ "$quantityOfArgs" -lt "4" ]
+then
+  help
+else
+  retrieveCaseNumbers
+fi
+
+if [[ "$casesForAccountNumber" == *"authenticat"* ]]
+then
+  retrieveToken
+else
+  retrieveCaseNumbers
+  retrieveCaseAttachments
+fi
+
+if [[ "$token" == *"Invalid user credentials"* ]]
+then
+  echo "Invalid user credentials"
+  exit 1
+else
+  retrieveCaseNumbers
+  retrieveCaseAttachments
+fi
+
