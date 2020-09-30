@@ -1,10 +1,12 @@
 #!/bin/bash
 
+#Generate bearer token fo authenticate against the Hydra endpoint
 function retrieveToken(){
   token=`curl $curlOption -s -k -d "username=$accessUsername&password=$accessPassword&grant_type=password&client_id=hydra-client-cli" https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token | sed 's/.*access_token":"\([^"]*\).*/\1/'`
   echo $token >~/.hydratoken
 }
 
+#Collect all case numbers using the search parameters provided with -id and -s
 function retrieveCaseNumbers () {
   token=`cat ~/.hydratoken`
   query="SELECT CaseNumber FROM Case WHERE SBR_Group__c INCLUDES  ('$SBR') AND Account.AccountNumber = '$AccountNum' \",\"identifier\":\"NumberOfRecord"
@@ -15,6 +17,7 @@ function retrieveCaseNumbers () {
   --data-raw $"[{\"query\":\"$query\"}]"`
 }
 
+#Using the collected case numbers pull the attachments file name, date created and URL
 function retrieveCaseAttachments () {
   #######################################
   # https://stackoverflow.com/a/3330834 #
