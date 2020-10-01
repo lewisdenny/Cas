@@ -151,6 +151,8 @@ do
   esac
 done
 
+#We try the cached token first
+#TODO: Use the token timer rather then just "trying" it to see if we need a token
 if [ "$quantityOfArgs" -lt "4" ]
 then
   help
@@ -161,9 +163,7 @@ fi
 if [[ "$casesForAccountNumber" == *"authenticat"* ]]
 then
   retrieveToken
-else
   retrieveCaseNumbers
-  retrieveCaseAttachments
 fi
 
 if [[ "$token" == *"Invalid user credentials"* ]]
@@ -171,7 +171,5 @@ then
   echo "Invalid user credentials"
   exit 1
 else
-  retrieveCaseNumbers
   retrieveCaseAttachments
 fi
-
