@@ -109,10 +109,11 @@ function retrieveCaseAttachments () {
   endspin
 }
 
+#TODO: Put into order
 function help () {
   printf "Usage:\n  cas [CREDENTIALS] [OPTIONS]\n"
   printf "\n"
-  printf "Example:\n  cas -u rhn-support-username -p password -s Stack -id 1445807 -l 10m -i -f Cwdlosp01\n"
+  printf "Example:\n  cas --username \$user --password \$pass --sbr Stack --customer-account-id 1445807 --limit 10months --ignore-case --filter \"SearchString\" \n"
   printf "\n"
   printf "[CREDENTIALS]\n"
   printf "  -u,  --username               access.redhat.com username\n"
