@@ -2,12 +2,12 @@
 
 Case Attachment Searcher
 ~~~
-❯ ./cas -h
+cas
 Usage:
   cas [CREDENTIALS] [OPTIONS]
 
 Example:
-  cas -u rhn-support-username -p password -s Stack -id 1445807 -l -i -f HostName
+  cas --username $user --password $pass --sbr Stack --customer-account-id 1445807 --limit 10months --ignore-case --filter "SearchString" 
 
 [CREDENTIALS]
   -u,  --username               access.redhat.com username
@@ -18,7 +18,9 @@ Example:
   -id, --customer-account-id    Customers account ID
   -f,  --filter                 Filter on attachment details
   -h,  --help                   This help screen
-  -l,  --link                   Enables links to the attachments
+  -l,  --limit                  Limit case results to cases opened x hours ago
+                                h|hours, d|days, w|weeks, m|months, or y|years can be used
+  -L,  --link                   Enables links to the attachments
   -i,  --ignore-case            Ignore case distinctions
   -v,  --verbose                Enables verbose on all curl commands
 ~~~
