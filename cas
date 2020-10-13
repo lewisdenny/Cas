@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#Generate bearer token fo authenticate against the Hydra endpoint
+#Generate bearer token to authenticate against the Hydra endpoint
 function retrieveToken(){
   token=`curl $curlOption -s -k -d "username=$accessUsername&password=$accessPassword&grant_type=password&client_id=hydra-client-cli" https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token | sed 's/.*access_token":"\([^"]*\).*/\1/'`
   echo $token >~/.hydratoken
