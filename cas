@@ -5,6 +5,7 @@ function retrieveToken(){
   #Generate bearer token to authenticate against the Hydra endpoint
   token=`curl $curlOption -s -k -d "username=$accessUsername&password=$accessPassword&grant_type=password&client_id=hydra-client-cli" https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token | sed 's/.*access_token":"\([^"]*\).*/\1/'`
   #Exit if there was an error with the user credentials
+  #TODO: Add check for invalid_grant error message
   if [[ "$token" == *"Invalid user credentials"* ]]
   then
     echo "Invalid user credentials"
@@ -195,7 +196,6 @@ do
 done
 
 #We try the cached token first
-#TODO: Use the token timer rather then just "trying" it to see if we need a token
 if [ "$quantityOfArgs" -lt "4" ]
 then
   help
