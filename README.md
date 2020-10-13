@@ -7,7 +7,7 @@ Usage:
   cas [CREDENTIALS] [OPTIONS]
 
 Example:
-  cas --username $user --password $pass --sbr Stack --customer-account-id 1445807 --limit 10months --ignore-case --filter "SearchString" 
+  cas --username $user --password $pass --sbr Stack --customer-account-id $id --limit 10months --ignore-case --filter "SearchString" 
 
 [CREDENTIALS]
   -u,  --username               access.redhat.com username
