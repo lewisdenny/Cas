@@ -1,15 +1,50 @@
 #!/bin/bash
 
-#Generate bearer token fo authenticate against the Hydra endpoint
 function retrieveToken(){
+  #echo "retrieveToken"
+  #Generate bearer token to authenticate against the Hydra endpoint
   token=`curl $curlOption -s -k -d "username=$accessUsername&password=$accessPassword&grant_type=password&client_id=hydra-client-cli" https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/token | sed 's/.*access_token":"\([^"]*\).*/\1/'`
+  #Exit if there was an error with the user credentials
+  if [[ "$token" == *"Invalid user credentials"* ]]
+  then
+    echo "Invalid user credentials"
+    exit 1
+  fi
+  #else cache the token to be used for the next 15 minutes
   echo $token >~/.hydratoken
 }
 
 #Collect all case numbers using the search parameters provided with -id and -s
 function retrieveCaseNumbers () {
+  if [ ! -z "$limit" ]
+  then 
+    #echo "entered: $limit"
+    timeUnit=`echo $limit | grep -o -E "[a-z]+"` 
+    #echo "Unit: $timeUnit"
+    timeNumber=`echo $limit | grep -o -E "[0-9]+"`
+    #echo "Time Value: $timeNumber"
+    case $timeUnit in
+      h | hour | hours )
+        timeInHours=$timeNumber
+        ;;
+      d | day | days )
+        timeInHours=`expr $(echo $timeNumber) \\* 24`
+        ;;
+      w | week | weeks )
+        timeInHours=`expr $(echo $timeNumber) \\* 168`
+        ;;
+      m | month | months )
+        timeInHours=`expr $(echo $timeNumber) \\* 730`
+        ;;
+      y | year | years )
+        timeInHours=`expr $(echo $timeNumber) \\* 8760`
+        ;;
+    esac
+    #echo "timeInHours: $timeInHours"
+    timeLimit="AND Hours_Since_Case_Last_Updated__c < $timeInHours"
+  fi
   token=`cat ~/.hydratoken`
-  query="SELECT CaseNumber FROM Case WHERE SBR_Group__c INCLUDES  ('$SBR') AND Account.AccountNumber = '$AccountNum' \",\"identifier\":\"NumberOfRecord"
+  query="SELECT CaseNumber FROM Case WHERE SBR_Group__c INCLUDES  ('$SBR') AND Account.AccountNumber = '$AccountNum' $timeLimit\",\"identifier\":\"NumberOfRecord"
   casesForAccountNumber=`curl -s $curlOption 'https://access.redhat.com/hydra/rest/soql' \
   -H 'Content-Type: application/json' \
   -H "Authorization:Bearer $token" \
@@ -19,9 +54,9 @@ function retrieveCaseNumbers () {
 
 #Using the collected case numbers pull the attachments file name, date created and URL
 function retrieveCaseAttachments () {
-  #######################################
-  # https://stackoverflow.com/a/3330834 #
-  #######################################
+  ######################################
+  #https://stackoverflow.com/a/3330834 #
+  ######################################
   sp="/-\|"
   sc=0
   function spin() {
@@ -32,7 +67,8 @@ function retrieveCaseAttachments () {
      printf "\r%s\n" "$@"
   }
   #######################################
-  
+
+  caseCount="1"
   caseNumbers=`echo $casesForAccountNumber | jq -r .'[].records[].CaseNumber'`
   quantityOfCaseNumbers=`echo $casesForAccountNumber | jq -r .'[].records[].CaseNumber'| wc -l`
   for caseNumber in $caseNumbers
@@ -70,13 +106,12 @@ function retrieveCaseAttachments () {
     caseCount=$[$caseCount+1]
   done
   endspin
-  exit 0
 }
 
 function help () {
   printf "Usage:\n  cas [CREDENTIALS] [OPTIONS]\n"
   printf "\n"
-  printf "Example:\n  cas -u rhn-support-username -p password -s Stack -id 1445807 -l -i -f Cwdlosp01\n"
+  printf "Example:\n  cas -u rhn-support-username -p password -s Stack -id 1445807 -l 10m -i -f Cwdlosp01\n"
   printf "\n"
   printf "[CREDENTIALS]\n"
   printf "  -u,  --username               access.redhat.com username\n"
@@ -87,16 +122,19 @@ function help () {
   printf "  -id, --customer-account-id    Customers account ID\n"
   printf "  -f,  --filter                 Filter on attachment details\n"
   printf "  -h,  --help                   This help screen\n"
-  printf "  -l,  --link                   Enables links to the attachments\n"
+  printf "  -l,  --limit                  Limit case results to cases opened x hours ago\n"
+  printf "                                h|hours, d|days, w|weeks, m|months, or y|years can be used\n"
+  printf "  -L,  --link                   Enables links to the attachments\n"
   printf "  -i,  --ignore-case            Ignore case distinctions\n"
   printf "  -v,  --verbose                Enables verbose on all curl commands\n"
-  exit 0
 }
 
 #Defaults
 enableLink="0"
 curlOption=""
 filter=""
+timeLimit=""
+#AND Hours_Since_Case_Last_Updated__c < $hours
 
 #####
 #https://github.com/sormy/aws-curl/blob/7cd6a9ae53ac493a7cd5eba857e19d92be6c97d5/aws-curl#L333-L382
@@ -105,7 +143,7 @@ quantityOfArgs="$#"
 while [ "$#" != 0 ]
 do
   case $1 in
-    -l | --link )
+    -L | --link )
         enableLink="1"
         shift
         ;;
@@ -138,6 +176,11 @@ do
         filter="$1"
         shift
         ;;
+    -l | --limit )
+        shift
+        limit="$1"
+        shift
+        ;;
     -h | --help )
         help
         exit
@@ -156,20 +199,22 @@ done
 if [ "$quantityOfArgs" -lt "4" ]
 then
   help
-else
-  retrieveCaseNumbers
+  exit 0
 fi
 
-if [[ "$casesForAccountNumber" == *"authenticat"* ]]
+#####
+#https://stackoverflow.com/a/2005658
+#####
+if [ ! -f ~/.hydratoken ]
 then
   retrieveToken
-  retrieveCaseNumbers
+elif [ `stat --format=%Y ~/.hydratoken` -le $(( `date +%s` - 900 )) ]
+then 
+  retrieveToken
 fi
 
-if [[ "$token" == *"Invalid user credentials"* ]]
-then
-  echo "Invalid user credentials"
-  exit 1
-else
-  retrieveCaseAttachments
-fi
+retrieveCaseNumbers
+
+retrieveCaseAttachments
+
+  exit 0
