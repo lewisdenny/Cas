@@ -7,7 +7,7 @@ Usage:
   cas [CREDENTIALS] [OPTIONS]
 
 Example:
-  cas -u rhn-support-username -p password -s Stack -id 1445807 -l -i -f Cwdlosp01
+  cas -u rhn-support-username -p password -s Stack -id 1445807 -l -i -f HostName
 
 [CREDENTIALS]
   -u,  --username               access.redhat.com username
